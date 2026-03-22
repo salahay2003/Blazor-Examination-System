@@ -1,0 +1,160 @@
+@using Blazor_Examination_System.Models
+@using Blazor_Examination_System.Components.Dialogs
+
+<MudDialog>
+    <TitleContent>
+        <MudText Typo="Typo.h6">@(_questionId == 0 ? "Add Question" : "Edit Question")</MudText>
+    </TitleContent>
+    <DialogContent>
+        <MudForm @ref="_form">
+            <MudTextField @bind-Value="_questionText" Label="Question Text" Lines="2" Required RequiredError="Question text is required" />
+            <MudNumericField @bind-Value="_marks" Label="Marks" Min="1" />
+            <MudText Typo="Typo.h6" Class="mt-4">Choices:</MudText>
+            <MudRadioGroup @bind-Value="_correctIndex">
+                @for (int i = 0; i < _choices.Count; i++)
+                {
+                    var index = i;
+                    <MudPaper Class="pa-3 ma-2" Elevation="1">
+                        <MudGrid>
+                            <MudItem xs="1">
+                                <MudRadio T="int" Value="@index" />
+                            </MudItem>
+                            <MudItem xs="9">
+                                <MudTextField @bind-Value="_choices[index].Text" Required Label=$"Choice {index + 1}" />
+                            </MudItem>
+                            <MudItem xs="2">
+                                <MudIconButton Icon="@Icons.Material.Filled.Delete" Color="Color.Error" OnClick="() => RemoveChoice(index)" Disabled="(_choices.Count <= 2)" Size="Size.Small" />
+                            </MudItem>
+                        </MudGrid>
+                    </MudPaper>
+                }
+            </MudRadioGroup>
+            <MudButton StartIcon="@Icons.Material.Filled.Add" OnClick="AddChoice" Disabled="(_choices.Count >= 6)" Class="mt-3">Add Choice</MudButton>
+        </MudForm>
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="Cancel">Cancel</MudButton>
+        <MudButton Color="Color.Primary" Variant="Variant.Filled" OnClick="Save">Save</MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter] private IMudDialogInstance MudDialog { get; set; } = null!;
+    [Parameter] public Question? Question { get; set; }
+    [Parameter] public int ExamId { get; set; }
+    
+    private MudForm? _form;
+    private string _questionText = string.Empty;
+    private int _marks = 1;
+    private int _questionId = 0;
+    private List<ChoiceModel> _choices = new();
+    private int _correctIndex = 0;
+
+    protected override void OnInitialized()
+    {
+        if (Question == null)
+        {
+            _questionText = string.Empty;
+            _marks = 1;
+            _questionId = 0;
+            _choices = new List<ChoiceModel>
+            {
+                new ChoiceModel { Text = string.Empty, IsCorrect = true },
+                new ChoiceModel { Text = string.Empty, IsCorrect = false },
+                new ChoiceModel { Text = string.Empty, IsCorrect = false },
+                new ChoiceModel { Text = string.Empty, IsCorrect = false }
+            };
+            _correctIndex = 0;
+        }
+        else
+        {
+            _questionText = Question.Text;
+            _marks = Question.Marks;
+            _questionId = Question.Id;
+            _choices = Question.Choices.OrderBy(c => c.OrderIndex).Select(c => new ChoiceModel 
+            { 
+                Text = c.Text, 
+                IsCorrect = c.IsCorrect 
+            }).ToList();
+            _correctIndex = _choices.FindIndex(c => c.IsCorrect);
+        }
+    }
+
+    private void AddChoice()
+    {
+        if (_choices.Count < 6)
+        {
+            _choices.Add(new ChoiceModel { Text = string.Empty, IsCorrect = false });
+        }
+    }
+
+    private void RemoveChoice(int index)
+    {
+        if (_choices.Count > 2)
+        {
+            _choices.RemoveAt(index);
+            if (_correctIndex >= _choices.Count)
+            {
+                _correctIndex = _choices.Count - 1;
+            }
+        }
+    }
+
+    private async Task Save()
+    {
+        if (_form != null)
+        {
+            await _form.Validate();
+            if (!_form.IsValid)
+            {
+                return;
+            }
+
+            if (string.IsNullOrWhiteSpace(_questionText))
+            {
+                return;
+            }
+
+            if (_choices.Any(c => string.IsNullOrWhiteSpace(c.Text)))
+            {
+                return;
+            }
+
+            if (_choices.Count < 2)
+            {
+                return;
+            }
+
+            for (int i = 0; i < _choices.Count; i++)
+            {
+                _choices[i].IsCorrect = (i == _correctIndex);
+            }
+
+            var question = new Question
+            {
+                Id = _questionId,
+                Text = _questionText,
+                Marks = _marks,
+                ExamId = ExamId
+            };
+
+            var choicesList = _choices.Select(c => new Choice { Text = c.Text, IsCorrect = c.IsCorrect }).ToList();
+
+            var result = new QuestionDialogResultData
+            {
+                Question = question,
+                Choices = choicesList
+            };
+
+            MudDialog.Close(DialogResult.Ok(result));
+        }
+    }
+
+    private void Cancel() => MudDialog.Cancel();
+
+    public class ChoiceModel
+    {
+        public string Text { get; set; } = string.Empty;
+        public bool IsCorrect { get; set; }
+    }
+}

@@ -1,0 +1,157 @@
+@page "/admin/subjects"
+@attribute [Authorize(Roles = "Admin")]
+@rendermode InteractiveServer
+@inject ISubjectManager SubjectManager
+@inject IDialogService DialogService
+@inject ISnackbar Snackbar
+
+<PageTitle>Subjects</PageTitle>
+
+<MudTable Items="_subjects" Dense="true" Hover="true" Striped="true" Loading="_isLoading" 
+          LoadingProgressColor="Color.Info" Filter="new Func<Subject, bool>(FilterFunc)" 
+          RowsPerPage="10">
+    <ToolBarContent>
+        <MudText Typo="Typo.h6">Subjects Management</MudText>
+        <MudSpacer />
+        <MudTextField @bind-Value="_searchString" Placeholder="Search..." Adornment="Adornment.Start" 
+                      AdornmentIcon="@Icons.Material.Filled.Search" IconSize="Size.Medium" Class="mt-0" />
+        <MudButton Color="Color.Primary" Variant="Variant.Filled" StartIcon="@Icons.Material.Filled.Add" 
+                   OnClick="OpenAddDialog" Class="ml-2">Add Subject</MudButton>
+    </ToolBarContent>
+    <HeaderContent>
+        <MudTh>Name</MudTh>
+        <MudTh>Description</MudTh>
+        <MudTh>Exams</MudTh>
+        <MudTh>Status</MudTh>
+        <MudTh>Created</MudTh>
+        <MudTh>Actions</MudTh>
+    </HeaderContent>
+    <RowTemplate>
+        <MudTd DataLabel="Name">@context.Name</MudTd>
+        <MudTd DataLabel="Description">
+            @if (context.Description?.Length > 50)
+            {
+                @(context.Description[..50] + "...")
+            }
+            else
+            {
+                @context.Description
+            }
+        </MudTd>
+        <MudTd DataLabel="Exams">@context.Exams.Count</MudTd>
+        <MudTd DataLabel="Status">
+            <MudChip T="string" Color="@(context.IsActive ? Color.Success : Color.Error)" Size="Size.Small">
+                @(context.IsActive ? "Active" : "Inactive")
+            </MudChip>
+        </MudTd>
+        <MudTd DataLabel="Created">@context.CreatedAt.ToString("MMM dd, yyyy")</MudTd>
+        <MudTd DataLabel="Actions">
+            <MudIconButton Icon="@Icons.Material.Filled.Edit" Size="Size.Small" OnClick="() => OpenEditDialog(context)" />
+            <MudIconButton Icon="@Icons.Material.Filled.Delete" Size="Size.Small" Color="Color.Error" 
+                           OnClick="() => OpenDeleteDialog(context)" />
+        </MudTd>
+    </RowTemplate>
+    <PagerContent>
+        <MudTablePager PageSizeOptions="new int[] { 10, 25, 50 }" />
+    </PagerContent>
+</MudTable>
+
+@code {
+    private List<Subject> _subjects = new();
+    private bool _isLoading = true;
+    private string _searchString = string.Empty;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadDataAsync();
+    }
+
+    private async Task LoadDataAsync()
+    {
+        _isLoading = true;
+        try
+        {
+            _subjects = await SubjectManager.GetAllWithExamsAsync();
+        }
+        finally
+        {
+            _isLoading = false;
+        }
+    }
+
+    private bool FilterFunc(Subject subject)
+    {
+        if (string.IsNullOrWhiteSpace(_searchString))
+            return true;
+
+        if (subject.Name.Contains(_searchString, StringComparison.OrdinalIgnoreCase))
+            return true;
+
+        if (subject.Description?.Contains(_searchString, StringComparison.OrdinalIgnoreCase) == true)
+            return true;
+
+        return false;
+    }
+
+    private async Task OpenAddDialog()
+    {
+        var parameters = new DialogParameters { ["Subject"] = null };
+        var dialog = await DialogService.ShowAsync<SubjectDialog>("Add Subject", parameters);
+        var result = await dialog.Result;
+        if (result != null && !result.Canceled)
+        {
+            try
+            {
+                var subject = (Subject)result.Data!;
+                await SubjectManager.CreateAsync(subject);
+                Snackbar.Add("Subject created successfully!", Severity.Success);
+                await LoadDataAsync();
+            }
+            catch (Exception ex)
+            {
+                Snackbar.Add($"Error: {ex.Message}", Severity.Error);
+            }
+        }
+    }
+
+    private async Task OpenEditDialog(Subject subject)
+    {
+        var parameters = new DialogParameters { ["Subject"] = subject };
+        var dialog = await DialogService.ShowAsync<SubjectDialog>("Edit Subject", parameters);
+        var result = await dialog.Result;
+        if (result != null && !result.Canceled)
+        {
+            try
+            {
+                var updated = (Subject)result.Data!;
+                await SubjectManager.UpdateAsync(updated);
+                Snackbar.Add("Subject updated successfully!", Severity.Success);
+                await LoadDataAsync();
+            }
+            catch (Exception ex)
+            {
+                Snackbar.Add($"Error: {ex.Message}", Severity.Error);
+            }
+        }
+    }
+
+    private async Task OpenDeleteDialog(Subject subject)
+    {
+        var parameters = new DialogParameters { ["ContentText"] = $"Are you sure you want to delete '{subject.Name}'?" };
+        var dialog = await DialogService.ShowAsync<ConfirmDialog>("Delete Subject", parameters);
+        var result = await dialog.Result;
+        if (result != null && !result.Canceled)
+        {
+            try
+            {
+                await SubjectManager.DeleteAsync(subject.Id);
+                Snackbar.Add("Subject deleted successfully!", Severity.Success);
+                await LoadDataAsync();
+            }
+            catch (Exception ex)
+            {
+                Snackbar.Add($"Error: {ex.Message}", Severity.Error);
+            }
+        }
+    }
+}

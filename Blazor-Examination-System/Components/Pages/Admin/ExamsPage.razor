@@ -1,0 +1,165 @@
+@page "/admin/exams"
+@attribute [Authorize(Roles = "Admin")]
+@rendermode InteractiveServer
+@inject IExamManager ExamManager
+@inject ISubjectManager SubjectManager
+@inject IDialogService DialogService
+@inject ISnackbar Snackbar
+@inject NavigationManager Navigation
+
+<PageTitle>Exams</PageTitle>
+
+<MudTable Items="_exams" Dense="true" Hover="true" Striped="true" Loading="_isLoading"
+          Filter="new Func<Exam, bool>(FilterFunc)" RowsPerPage="10">
+    <ToolBarContent>
+        <MudText Typo="Typo.h6">Exams Management</MudText>
+        <MudSpacer />
+        <MudSelect @bind-Value="_filterSubjectId" Label="Filter by Subject" AnchorOrigin="Origin.BottomCenter">
+            <MudSelectItem T="int?" Value="null">All Subjects</MudSelectItem>
+            @foreach (var subject in _subjects)
+            {
+                <MudSelectItem T="int?" Value="subject.Id">@subject.Name</MudSelectItem>
+            }
+        </MudSelect>
+        <MudTextField @bind-Value="_searchString" Placeholder="Search..." Adornment="Adornment.Start"
+                      AdornmentIcon="@Icons.Material.Filled.Search" IconSize="Size.Medium" Class="mt-0" />
+        <MudButton Color="Color.Primary" Variant="Variant.Filled" StartIcon="@Icons.Material.Filled.Add"
+                   OnClick="OpenAddDialog" Class="ml-2">Add Exam</MudButton>
+    </ToolBarContent>
+    <HeaderContent>
+        <MudTh>Title</MudTh>
+        <MudTh>Subject</MudTh>
+        <MudTh>Duration</MudTh>
+        <MudTh>Total Marks</MudTh>
+        <MudTh>Passing Marks</MudTh>
+        <MudTh>Questions</MudTh>
+        <MudTh>Status</MudTh>
+        <MudTh>Actions</MudTh>
+    </HeaderContent>
+    <RowTemplate>
+        <MudTd DataLabel="Title">@context.Title</MudTd>
+        <MudTd DataLabel="Subject">@context.Subject?.Name</MudTd>
+        <MudTd DataLabel="Duration">@context.DurationInMinutes min</MudTd>
+        <MudTd DataLabel="Total Marks">@context.TotalMarks</MudTd>
+        <MudTd DataLabel="Passing Marks">@context.PassingMarks</MudTd>
+        <MudTd DataLabel="Questions">@context.Questions.Count</MudTd>
+        <MudTd DataLabel="Status">
+            <MudChip T="string" Color="@(context.IsActive ? Color.Success : Color.Error)" Size="Size.Small">
+                @(context.IsActive ? "Active" : "Inactive")
+            </MudChip>
+        </MudTd>
+        <MudTd DataLabel="Actions">
+            <MudIconButton Icon="@Icons.Material.Filled.Edit" Size="Size.Small" OnClick="() => OpenEditDialog(context)" />
+            <MudIconButton Icon="@Icons.Material.Filled.Delete" Size="Size.Small" Color="Color.Error"
+                           OnClick="() => OpenDeleteDialog(context)" />
+            <MudButton Size="Size.Small" Variant="Variant.Text" OnClick="() => NavigateToQuestions(context.Id)">Questions</MudButton>
+        </MudTd>
+    </RowTemplate>
+    <PagerContent>
+        <MudTablePager PageSizeOptions="new int[] { 10, 25, 50 }" />
+    </PagerContent>
+</MudTable>
+
+@code {
+    private List<Exam> _exams = new();
+    private List<Subject> _subjects = new();
+    private bool _isLoading = true;
+    private string _searchString = string.Empty;
+    private int? _filterSubjectId;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadDataAsync();
+    }
+
+    private async Task LoadDataAsync()
+    {
+        _isLoading = true;
+        try
+        {
+            _exams = await ExamManager.GetAllWithSubjectAsync();
+            _subjects = await SubjectManager.GetAllAsync();
+        }
+        finally
+        {
+            _isLoading = false;
+        }
+    }
+
+    private bool FilterFunc(Exam exam)
+    {
+        var passesSubjectFilter = _filterSubjectId == null || exam.SubjectId == _filterSubjectId;
+        
+        if (string.IsNullOrWhiteSpace(_searchString))
+            return passesSubjectFilter;
+
+        return passesSubjectFilter && exam.Title.Contains(_searchString, StringComparison.OrdinalIgnoreCase);
+    }
+
+    private void NavigateToQuestions(int examId)
+    {
+        Navigation.NavigateTo($"/admin/exams/{examId}/questions");
+    }
+
+    private async Task OpenAddDialog()
+    {
+        var parameters = new DialogParameters { ["Exam"] = null, ["Subjects"] = _subjects };
+        var dialog = await DialogService.ShowAsync<ExamDialog>("Add Exam", parameters);
+        var result = await dialog.Result;
+        if (result != null && !result.Canceled)
+        {
+            try
+            {
+                var exam = (Exam)result.Data!;
+                await ExamManager.CreateAsync(exam);
+                Snackbar.Add("Exam created successfully!", Severity.Success);
+                await LoadDataAsync();
+            }
+            catch (Exception ex)
+            {
+                Snackbar.Add($"Error: {ex.Message}", Severity.Error);
+            }
+        }
+    }
+
+    private async Task OpenEditDialog(Exam exam)
+    {
+        var parameters = new DialogParameters { ["Exam"] = exam, ["Subjects"] = _subjects };
+        var dialog = await DialogService.ShowAsync<ExamDialog>("Edit Exam", parameters);
+        var result = await dialog.Result;
+        if (result != null && !result.Canceled)
+        {
+            try
+            {
+                var updated = (Exam)result.Data!;
+                await ExamManager.UpdateAsync(updated);
+                Snackbar.Add("Exam updated successfully!", Severity.Success);
+                await LoadDataAsync();
+            }
+            catch (Exception ex)
+            {
+                Snackbar.Add($"Error: {ex.Message}", Severity.Error);
+            }
+        }
+    }
+
+    private async Task OpenDeleteDialog(Exam exam)
+    {
+        var parameters = new DialogParameters { ["ContentText"] = $"Are you sure you want to delete '{exam.Title}'?" };
+        var dialog = await DialogService.ShowAsync<ConfirmDialog>("Delete Exam", parameters);
+        var result = await dialog.Result;
+        if (result != null && !result.Canceled)
+        {
+            try
+            {
+                await ExamManager.DeleteAsync(exam.Id);
+                Snackbar.Add("Exam deleted successfully!", Severity.Success);
+                await LoadDataAsync();
+            }
+            catch (Exception ex)
+            {
+                Snackbar.Add($"Error: {ex.Message}", Severity.Error);
+            }
+        }
+    }
+}

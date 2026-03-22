@@ -1,0 +1,299 @@
+@page "/student/exams"
+@attribute [Authorize(Roles = "Student")]
+@rendermode InteractiveServer
+@inject IExamManager ExamManager
+@inject IStudentExamManager StudentExamManager
+@inject IDialogService DialogService
+@inject ISnackbar Snackbar
+@inject NavigationManager Navigation
+
+<PageTitle>Available Exams — ExamBlaze</PageTitle>
+
+<div class="page-container">
+
+    <div class="exams-page-header animate-fade-in-up">
+        <div>
+            <h2 class="exams-page-title">Available Exams</h2>
+            <p class="exams-page-subtitle">Select an exam to get started. The timer begins immediately.</p>
+        </div>
+        @if (!_isLoading)
+        {
+            <div class="exams-header-badge">
+                <span class="exams-count-dot"></span>
+                @_exams.Count exam@(_exams.Count == 1 ? "" : "s") available
+            </div>
+        }
+    </div>
+
+    @if (_isLoading)
+    {
+        <div class="loading-container">
+            <MudProgressCircular Indeterminate="true" Color="Color.Primary" Size="Size.Large" />
+            <p class="loading-text">Loading your exams...</p>
+        </div>
+    }
+    else if (!_exams.Any())
+    {
+        <div class="exams-empty-state animate-scale-in">
+            <div class="exams-empty-icon">📭</div>
+            <h3 class="exams-empty-title">No Exams Available</h3>
+            <p class="exams-empty-desc">There are no exams scheduled for you at the moment. Check back later or contact your administrator.</p>
+        </div>
+    }
+    else
+    {
+        <MudGrid>
+            @foreach (var exam in _exams)
+            {
+                <MudItem xs="12" sm="6" md="4">
+                    <div class="exam-card animate-fade-in-up">
+                        <div class="exam-card-top">
+                            <div class="exam-subject-badge">@exam.Subject?.Name</div>
+                            <h3 class="exam-card-title">@exam.Title</h3>
+                        </div>
+                        <div class="exam-card-body">
+                            <div class="exam-info-item">
+                                <span class="exam-info-icon">⏱</span>
+                                <span class="exam-info-label">Duration</span>
+                                <span class="exam-info-value">@exam.DurationInMinutes min</span>
+                            </div>
+                            <div class="exam-info-item">
+                                <span class="exam-info-icon">📊</span>
+                                <span class="exam-info-label">Total Marks</span>
+                                <span class="exam-info-value">@exam.TotalMarks</span>
+                            </div>
+                            <div class="exam-info-item">
+                                <span class="exam-info-icon">✅</span>
+                                <span class="exam-info-label">Passing Marks</span>
+                                <span class="exam-info-value">@exam.PassingMarks</span>
+                            </div>
+                            <div class="exam-info-item">
+                                <span class="exam-info-icon">❓</span>
+                                <span class="exam-info-label">Questions</span>
+                                <span class="exam-info-value">@exam.Questions.Count</span>
+                            </div>
+                        </div>
+                        <div class="exam-card-footer">
+                            <MudButton FullWidth="true" Color="Color.Primary" Variant="Variant.Filled"
+                                       OnClick="() => StartExam(exam)"
+                                       Class="btn-start-exam">
+                                Start Exam →
+                            </MudButton>
+                        </div>
+                    </div>
+                </MudItem>
+            }
+        </MudGrid>
+    }
+
+</div>
+
+<style>
+    .exams-page-header {
+        display: flex;
+        align-items: flex-end;
+        justify-content: space-between;
+        flex-wrap: wrap;
+        gap: 12px;
+        margin-bottom: 24px;
+    }
+
+    .exams-page-title {
+        font-family: 'Syne', sans-serif;
+        font-size: 1.8rem;
+        font-weight: 800;
+        color: #3a1f15;
+        margin: 0 0 4px;
+        letter-spacing: -0.3px;
+    }
+
+    .exams-page-subtitle {
+        font-size: 0.88rem;
+        color: #9b6252;
+        margin: 0;
+    }
+
+    .exams-header-badge {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        background: #f5ede8;
+        border: 1.5px solid rgba(255, 87, 34, 0.25);
+        border-radius: 20px;
+        padding: 6px 16px;
+        font-size: 0.82rem;
+        font-weight: 600;
+        color: #c94020;
+        box-shadow: 3px 3px 8px rgba(190,130,110,0.2), -3px -3px 8px rgba(255,255,255,0.75);
+        white-space: nowrap;
+    }
+
+    .exams-count-dot {
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+        background: linear-gradient(135deg, #ff8c5a, #ff5722);
+        flex-shrink: 0;
+        animation: flamePulse 2s infinite;
+    }
+
+    .loading-text {
+        margin-top: 16px;
+        font-size: 0.9rem;
+        color: #9b6252;
+        font-weight: 500;
+    }
+
+    .exams-empty-state {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        min-height: 320px;
+        text-align: center;
+        background: #f5ede8;
+        border-radius: 22px;
+        padding: 48px 32px;
+        box-shadow: 6px 6px 18px rgba(190,130,110,0.28), -6px -6px 14px rgba(255,255,255,0.8);
+    }
+
+    .exams-empty-icon { font-size: 3rem; margin-bottom: 14px; }
+
+    .exams-empty-title {
+        font-family: 'Syne', sans-serif;
+        font-size: 1.2rem;
+        font-weight: 700;
+        color: #3a1f15;
+        margin: 0 0 8px;
+    }
+
+    .exams-empty-desc {
+        font-size: 0.86rem;
+        color: #9b6252;
+        max-width: 340px;
+        line-height: 1.6;
+        margin: 0;
+    }
+
+    .exam-card {
+        background: #f5ede8;
+        border-radius: 20px;
+        overflow: hidden;
+        position: relative;
+        display: flex;
+        flex-direction: column;
+        height: 100%;
+        box-shadow: 7px 7px 18px rgba(190,130,110,0.32), -7px -7px 16px rgba(255,255,255,0.82);
+        transition: all 0.35s cubic-bezier(0.34, 1.56, 0.64, 1);
+    }
+
+    .exam-card::before {
+        content: '';
+        position: absolute;
+        top: 0; left: 0; bottom: 0;
+        width: 5px;
+        background: linear-gradient(135deg, #ff8c5a, #ff5722, #e53935);
+        border-radius: 20px 0 0 20px;
+        transition: width 0.3s ease;
+    }
+
+    .exam-card:hover::before { width: 8px; }
+
+    .exam-card:hover {
+        transform: translateY(-8px);
+        box-shadow: 12px 12px 30px rgba(190,130,110,0.38), -12px -12px 24px rgba(255,255,255,0.88);
+    }
+
+    .exam-card-top {
+        padding: 20px 20px 14px 24px;
+        border-bottom: 1px solid rgba(190,130,110,0.15);
+    }
+
+    .exam-card-title {
+        font-family: 'Syne', sans-serif;
+        font-size: 1rem;
+        font-weight: 700;
+        color: #3a1f15;
+        margin: 8px 0 0;
+        line-height: 1.3;
+    }
+
+    .exam-card-body {
+        padding: 14px 20px 14px 24px;
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+        flex: 1;
+    }
+
+    .exam-info-item {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        font-size: 0.85rem;
+    }
+
+    .exam-info-icon { font-size: 0.95rem; width: 20px; flex-shrink: 0; }
+    .exam-info-label { color: #9b6252; font-weight: 500; flex: 1; }
+    .exam-info-value { font-weight: 700; color: #3a1f15; font-family: 'Syne', sans-serif; font-size: 0.88rem; }
+
+    .exam-card-footer {
+        padding: 14px 20px 20px 24px;
+        border-top: 1px solid rgba(190,130,110,0.15);
+    }
+
+    @@media (max-width: 600px) {
+        .exams-page-header { flex-direction: column; align-items: flex-start; }
+        .exams-page-title { font-size: 1.4rem; }
+    }
+</style>
+
+@code {
+    private List<Exam> _exams = new();
+    private bool _isLoading = true;
+    private string _userId = string.Empty;
+
+    [CascadingParameter] private Task<AuthenticationState>? AuthStateTask { get; set; }
+
+    protected override async Task OnInitializedAsync()
+    {
+        var authState = await AuthStateTask!;
+        _userId = authState.User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value ?? string.Empty;
+        await LoadExamsAsync();
+    }
+
+    private async Task LoadExamsAsync()
+    {
+        _isLoading = true;
+        try
+        {
+            _exams = await ExamManager.GetAvailableExamsForStudentAsync(_userId);
+        }
+        finally
+        {
+            _isLoading = false;
+        }
+    }
+
+    private async Task StartExam(Exam exam)
+    {
+        var parameters = new DialogParameters
+        {
+            ["ContentText"] = $"Are you sure you want to start '{exam.Title}'? The timer will begin immediately!"
+        };
+        var dialog = await DialogService.ShowAsync<ConfirmDialog>("Start Exam", parameters);
+        var result = await dialog.Result;
+        if (result != null && !result.Canceled)
+        {
+            try
+            {
+                var studentExam = await StudentExamManager.StartExamAsync(_userId, exam.Id);
+                Navigation.NavigateTo($"/student/exam/{exam.Id}/take");
+            }
+            catch (Exception ex)
+            {
+                Snackbar.Add($"Error: {ex.Message}", Severity.Error);
+            }
+        }
+    }
+}

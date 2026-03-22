@@ -1,0 +1,159 @@
+@page "/admin/dashboard"
+@attribute [Authorize(Roles = "Admin")]
+@rendermode InteractiveServer
+@inject IDashboardManager DashboardManager
+
+<PageTitle>Dashboard</PageTitle>
+
+@if (_isLoading)
+{
+    <MudStack AlignItems="AlignItems.Center" Class="mt-8">
+        <MudProgressCircular Indeterminate="true" Size="Size.Large" />
+        <MudText>Loading dashboard...</MudText>
+    </MudStack>
+}
+else if (_data != null)
+{
+    <MudText Typo="Typo.h4" Class="mb-4">Dashboard</MudText>
+    
+    <MudGrid>
+        <MudItem xs="12" sm="6" md="4">
+            <MudCard Elevation="3">
+                <MudCardContent>
+                    <MudStack Row="true" Spacing="2" AlignItems="AlignItems.Center">
+                        <MudIcon Icon="@Icons.Material.Filled.Book" Size="Size.Large" Color="Color.Primary" />
+                        <MudStack Spacing="0">
+                            <MudText Typo="Typo.h4">@_data.TotalSubjects</MudText>
+                            <MudText Typo="Typo.body2" Color="Color.Secondary">Subjects</MudText>
+                        </MudStack>
+                    </MudStack>
+                </MudCardContent>
+            </MudCard>
+        </MudItem>
+
+        <MudItem xs="12" sm="6" md="4">
+            <MudCard Elevation="3">
+                <MudCardContent>
+                    <MudStack Row="true" Spacing="2" AlignItems="AlignItems.Center">
+                        <MudIcon Icon="@Icons.Material.Filled.Quiz" Size="Size.Large" Color="Color.Secondary" />
+                        <MudStack Spacing="0">
+                            <MudText Typo="Typo.h4">@_data.TotalExams</MudText>
+                            <MudText Typo="Typo.body2" Color="Color.Secondary">Exams</MudText>
+                        </MudStack>
+                    </MudStack>
+                </MudCardContent>
+            </MudCard>
+        </MudItem>
+
+        <MudItem xs="12" sm="6" md="4">
+            <MudCard Elevation="3">
+                <MudCardContent>
+                    <MudStack Row="true" Spacing="2" AlignItems="AlignItems.Center">
+                        <MudIcon Icon="@Icons.Material.Filled.QuestionMark" Size="Size.Large" Color="Color.Info" />
+                        <MudStack Spacing="0">
+                            <MudText Typo="Typo.h4">@_data.TotalQuestions</MudText>
+                            <MudText Typo="Typo.body2" Color="Color.Secondary">Questions</MudText>
+                        </MudStack>
+                    </MudStack>
+                </MudCardContent>
+            </MudCard>
+        </MudItem>
+
+        <MudItem xs="12" sm="6" md="4">
+            <MudCard Elevation="3">
+                <MudCardContent>
+                    <MudStack Row="true" Spacing="2" AlignItems="AlignItems.Center">
+                        <MudIcon Icon="@Icons.Material.Filled.People" Size="Size.Large" Color="Color.Success" />
+                        <MudStack Spacing="0">
+                            <MudText Typo="Typo.h4">@_data.TotalStudents</MudText>
+                            <MudText Typo="Typo.body2" Color="Color.Secondary">Students</MudText>
+                        </MudStack>
+                    </MudStack>
+                </MudCardContent>
+            </MudCard>
+        </MudItem>
+
+        <MudItem xs="12" sm="6" md="4">
+            <MudCard Elevation="3">
+                <MudCardContent>
+                    <MudStack Row="true" Spacing="2" AlignItems="AlignItems.Center">
+                        <MudIcon Icon="@Icons.Material.Filled.Assignment" Size="Size.Large" Color="Color.Warning" />
+                        <MudStack Spacing="0">
+                            <MudText Typo="Typo.h4">@_data.TotalExamsTaken</MudText>
+                            <MudText Typo="Typo.body2" Color="Color.Secondary">Exams Taken</MudText>
+                        </MudStack>
+                    </MudStack>
+                </MudCardContent>
+            </MudCard>
+        </MudItem>
+
+        <MudItem xs="12" sm="6" md="4">
+            <MudCard Elevation="3">
+                <MudCardContent>
+                    <MudStack Row="true" Spacing="2" AlignItems="AlignItems.Center">
+                        <MudIcon Icon="@Icons.Material.Filled.TrendingUp" Size="Size.Large" Color="Color.Error" />
+                        <MudStack Spacing="0">
+                            <MudText Typo="Typo.h4">@_data.AverageScorePercentage.ToString("F1")%</MudText>
+                            <MudText Typo="Typo.body2" Color="Color.Secondary">Avg Score</MudText>
+                        </MudStack>
+                    </MudStack>
+                </MudCardContent>
+            </MudCard>
+        </MudItem>
+    </MudGrid>
+
+    @if (_data.ExamsPerSubject.Any())
+    {
+        <MudText Typo="Typo.h5" Class="mt-6 mb-2">Exams Per Subject</MudText>
+        <MudCard>
+            <MudCardContent>
+                <MudChart ChartType="ChartType.Bar" ChartSeries="@(new List<ChartSeries<double>> { new ChartSeries<double> { Name = "Exams", Data = _data.ExamsPerSubject.Select(x => (double)x.ExamCount).ToArray() } })" 
+                          XAxisLabels="@_data.ExamsPerSubject.Select(x => x.SubjectName).ToArray()" Width="100%" Height="300px" />
+            </MudCardContent>
+        </MudCard>
+    }
+
+    @if (_data.RecentResults.Any())
+    {
+        <MudText Typo="Typo.h5" Class="mt-6 mb-2">Recent Results</MudText>
+        <MudTable Items="_data.RecentResults" Dense="true" Hover="true" Striped="true">
+            <HeaderContent>
+                <MudTh>Student</MudTh>
+                <MudTh>Exam</MudTh>
+                <MudTh>Subject</MudTh>
+                <MudTh>Score</MudTh>
+                <MudTh>Status</MudTh>
+                <MudTh>Completed</MudTh>
+            </HeaderContent>
+            <RowTemplate Context="resultItem">
+                <MudTd DataLabel="Student">@resultItem.StudentName</MudTd>
+                <MudTd DataLabel="Exam">@resultItem.ExamTitle</MudTd>
+                <MudTd DataLabel="Subject">@resultItem.SubjectName</MudTd>
+                <MudTd DataLabel="Score">@resultItem.Score / @resultItem.TotalMarks</MudTd>
+                <MudTd DataLabel="Status">
+                    <MudChip T="string" Color="@(resultItem.IsPassed ? Color.Success : Color.Error)" Size="Size.Small">
+                        @(resultItem.IsPassed ? "Passed" : "Failed")
+                    </MudChip>
+                </MudTd>
+                <MudTd DataLabel="Completed">@resultItem.CompletedAt.ToString("MMM dd, yyyy HH:mm")</MudTd>
+            </RowTemplate>
+        </MudTable>
+    }
+}
+
+@code {
+    private DashboardDto? _data;
+    private bool _isLoading = true;
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            _data = await DashboardManager.GetDashboardDataAsync();
+        }
+        finally
+        {
+            _isLoading = false;
+        }
+    }
+}

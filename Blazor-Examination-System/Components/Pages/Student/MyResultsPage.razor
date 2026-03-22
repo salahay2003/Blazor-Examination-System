@@ -1,0 +1,95 @@
+@page "/student/results"
+@attribute [Authorize(Roles = "Student")]
+@rendermode InteractiveServer
+@inject IStudentExamManager StudentExamManager
+@inject NavigationManager Navigation
+
+<PageTitle>My Results</PageTitle>
+
+@if (_isLoading)
+{
+    <MudProgressCircular Indeterminate="true" />
+}
+else if (!_results.Any())
+{
+    <MudAlert Severity="Severity.Info">You haven't taken any exams yet.</MudAlert>
+}
+else
+{
+    <MudTable Items="_results" Dense="true" Hover="true" Striped="true" RowsPerPage="10">
+        <HeaderContent>
+            <MudTh>Subject</MudTh>
+            <MudTh>Exam</MudTh>
+            <MudTh>Score</MudTh>
+            <MudTh>Percentage</MudTh>
+            <MudTh>Status</MudTh>
+            <MudTh>Started</MudTh>
+        </HeaderContent>
+        <RowTemplate Context="examItem">
+            <MudTd DataLabel="Subject">@examItem.Exam?.Subject?.Name</MudTd>
+            <MudTd DataLabel="Exam" Style="cursor: pointer;" @onclick="() => RowClicked(examItem)">@examItem.Exam?.Title</MudTd>
+            <MudTd DataLabel="Score">@examItem.Score / @examItem.Exam?.TotalMarks</MudTd>
+            <MudTd DataLabel="Percentage">
+                @{
+                    var percentage = examItem.Exam?.TotalMarks > 0 ? (double)examItem.Score / examItem.Exam.TotalMarks * 100 : 0;
+                    <MudProgressLinear Value="@percentage" Color="@(examItem.IsPassed ? Color.Success : Color.Error)" Class="rounded" />
+                    <MudText Typo="Typo.caption">@percentage.ToString("F1")%</MudText>
+                }
+            </MudTd>
+            <MudTd DataLabel="Status">
+                <MudChip T="string" Color="@(examItem.IsPassed ? Color.Success : Color.Error)" Size="Size.Small">
+                    @(examItem.IsPassed ? "Passed" : "Failed")
+                </MudChip>
+            </MudTd>
+            <MudTd DataLabel="Started">@examItem.StartedAt.ToString("MMM dd, yyyy HH:mm")</MudTd>
+        </RowTemplate>
+        <PagerContent>
+            <MudTablePager PageSizeOptions="new int[] { 10, 25, 50 }" />
+        </PagerContent>
+    </MudTable>
+}
+
+@code {
+    private List<StudentExam> _results = new();
+    private bool _isLoading = true;
+    private string _userId = string.Empty;
+
+    [CascadingParameter] private Task<AuthenticationState>? AuthStateTask { get; set; }
+
+    protected override async Task OnInitializedAsync()
+    {
+        var authState = await AuthStateTask!;
+        _userId = authState.User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value ?? string.Empty;
+
+        if (string.IsNullOrEmpty(_userId))
+        {
+            _isLoading = false;
+            return;
+        }
+
+        await LoadResultsAsync();
+    }
+
+    private async Task LoadResultsAsync()
+    {
+        _isLoading = true;
+        try
+        {
+            // Get ONLY this student's results
+            var allResults = await StudentExamManager.GetStudentExamsAsync(_userId);
+            _results = allResults
+                .Where(r => r.StudentId == _userId && r.IsCompleted)
+                .OrderByDescending(r => r.CompletedAt)
+                .ToList();
+        }
+        finally
+        {
+            _isLoading = false;
+        }
+    }
+
+    private void RowClicked(StudentExam item)
+    {
+        Navigation.NavigateTo($"/student/result/{item.Id}");
+    }
+}

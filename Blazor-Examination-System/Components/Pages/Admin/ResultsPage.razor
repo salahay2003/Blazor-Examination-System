@@ -1,0 +1,348 @@
+@page "/admin/results"
+@attribute [Authorize(Roles = "Admin")]
+@rendermode InteractiveServer
+@inject IStudentExamManager StudentExamManager
+@inject ISubjectManager SubjectManager
+@inject IExamManager ExamManager
+@inject ISnackbar Snackbar
+
+<PageTitle>Results</PageTitle>
+
+<div class="page-container">
+    <MudText Typo="Typo.h4" Class="mb-2 animate-slide-down" Style="font-weight: 800; color: #1a237e;">
+        📋 Exam Results
+    </MudText>
+    <MudText Typo="Typo.body1" Color="Color.Secondary" Class="mb-6">
+        View and filter all student exam results
+    </MudText>
+
+    @if (_isLoading)
+    {
+        <div class="loading-container">
+            <MudProgressCircular Indeterminate="true" Size="Size.Large" Color="Color.Primary" />
+            <MudText Class="mt-4" Color="Color.Secondary">Loading results...</MudText>
+        </div>
+    }
+    else
+    {
+        @* ===== SUMMARY CARDS ===== *@
+        <MudGrid Class="mb-6">
+            <MudItem xs="12" sm="6" md="3">
+                <MudPaper Class="pa-4 stat-card stat-card-primary animate-fade-in-up delay-1" Elevation="0">
+                    <MudText Class="stat-number">@_results.Count</MudText>
+                    <MudText Class="stat-label">Total Attempts</MudText>
+                    <MudIcon Icon="@Icons.Material.Filled.Assignment" Class="stat-icon" />
+                </MudPaper>
+            </MudItem>
+            <MudItem xs="12" sm="6" md="3">
+                <MudPaper Class="pa-4 stat-card stat-card-success animate-fade-in-up delay-2" Elevation="0">
+                    <MudText Class="stat-number">@_results.Count(r => r.IsPassed)</MudText>
+                    <MudText Class="stat-label">Passed</MudText>
+                    <MudIcon Icon="@Icons.Material.Filled.CheckCircle" Class="stat-icon" />
+                </MudPaper>
+            </MudItem>
+            <MudItem xs="12" sm="6" md="3">
+                <MudPaper Class="pa-4 stat-card stat-card-error animate-fade-in-up delay-3" Elevation="0">
+                    <MudText Class="stat-number">@_results.Count(r => !r.IsPassed)</MudText>
+                    <MudText Class="stat-label">Failed</MudText>
+                    <MudIcon Icon="@Icons.Material.Filled.Cancel" Class="stat-icon" />
+                </MudPaper>
+            </MudItem>
+            <MudItem xs="12" sm="6" md="3">
+                <MudPaper Class="pa-4 stat-card stat-card-info animate-fade-in-up delay-4" Elevation="0">
+                    <MudText Class="stat-number">@(GetAverageScore())%</MudText>
+                    <MudText Class="stat-label">Average Score</MudText>
+                    <MudIcon Icon="@Icons.Material.Filled.TrendingUp" Class="stat-icon" />
+                </MudPaper>
+            </MudItem>
+        </MudGrid>
+
+        @* ===== FILTERS ===== *@
+        <MudPaper Class="pa-4 mb-4" Elevation="2" Style="border-radius: 16px;">
+            <MudGrid>
+                <MudItem xs="12" sm="4">
+                    <MudTextField @bind-Value="_searchString" 
+                                  Placeholder="Search by student name..." 
+                                  Adornment="Adornment.Start" 
+                                  AdornmentIcon="@Icons.Material.Filled.Search"
+                                  Immediate="true"
+                                  Variant="Variant.Outlined"
+                                  Margin="Margin.Dense" />
+                </MudItem>
+                <MudItem xs="12" sm="3">
+                    <MudSelect T="string" @bind-Value="_filterSubject" 
+                               Label="Filter by Subject" 
+                               Variant="Variant.Outlined" 
+                               Margin="Margin.Dense"
+                               Clearable="true">
+                        @foreach (var subject in _subjects)
+                        {
+                            <MudSelectItem Value="@subject.Name">@subject.Name</MudSelectItem>
+                        }
+                    </MudSelect>
+                </MudItem>
+                <MudItem xs="12" sm="3">
+                    <MudSelect T="string" @bind-Value="_filterExam" 
+                               Label="Filter by Exam" 
+                               Variant="Variant.Outlined" 
+                               Margin="Margin.Dense"
+                               Clearable="true">
+                        @foreach (var exam in GetFilteredExams())
+                        {
+                            <MudSelectItem Value="@exam.Title">@exam.Title</MudSelectItem>
+                        }
+                    </MudSelect>
+                </MudItem>
+                <MudItem xs="12" sm="2">
+                    <MudSelect T="string" @bind-Value="_filterStatus" 
+                               Label="Status" 
+                               Variant="Variant.Outlined" 
+                               Margin="Margin.Dense"
+                               Clearable="true">
+                        <MudSelectItem Value="@("Pass")">✅ Pass</MudSelectItem>
+                        <MudSelectItem Value="@("Fail")">❌ Fail</MudSelectItem>
+                    </MudSelect>
+                </MudItem>
+            </MudGrid>
+        </MudPaper>
+
+        @* ===== RESULTS TABLE ===== *@
+        <MudTable Items="@GetFilteredResults()" 
+                  Hover="true" 
+                  Striped="true"
+                  FixedHeader="true"
+                  Height="600px"
+                  Dense="false"
+                  Loading="_isLoading"
+                  Elevation="3"
+                  Style="border-radius: 16px;"
+                  RowsPerPage="15">
+
+            <HeaderContent>
+                <MudTh><MudTableSortLabel SortBy="new Func<StudentExam, object>(x => x.Student.FullName)">Student</MudTableSortLabel></MudTh>
+                <MudTh><MudTableSortLabel SortBy="new Func<StudentExam, object>(x => x.Exam.Subject.Name)">Subject</MudTableSortLabel></MudTh>
+                <MudTh><MudTableSortLabel SortBy="new Func<StudentExam, object>(x => x.Exam.Title)">Exam</MudTableSortLabel></MudTh>
+                <MudTh Style="text-align:center"><MudTableSortLabel SortBy="new Func<StudentExam, object>(x => x.Score)">Score</MudTableSortLabel></MudTh>
+                <MudTh Style="text-align:center">Percentage</MudTh>
+                <MudTh Style="text-align:center"><MudTableSortLabel SortBy="new Func<StudentExam, object>(x => x.IsPassed)">Status</MudTableSortLabel></MudTh>
+                <MudTh Style="text-align:center">Time Taken</MudTh>
+                <MudTh><MudTableSortLabel SortBy="new Func<StudentExam, object>(x => x.CompletedAt ?? DateTime.MinValue)">Date</MudTableSortLabel></MudTh>
+            </HeaderContent>
+
+            <RowTemplate>
+                <MudTd>
+                    <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="2">
+                        <MudAvatar Size="Size.Small" 
+                                   Style="@($"background: {GetAvatarColor(context.Student?.FullName ?? "")}; color: white; font-weight: 700;")">
+                            @GetInitials(context.Student?.FullName ?? "?")
+                        </MudAvatar>
+                        <MudStack Spacing="0">
+                            <MudText Typo="Typo.body2" Style="font-weight: 600;">
+                                @(context.Student?.FullName ?? "Unknown")
+                            </MudText>
+                            <MudText Typo="Typo.caption" Color="Color.Secondary">
+                                @(context.Student?.Email ?? "")
+                            </MudText>
+                        </MudStack>
+                    </MudStack>
+                </MudTd>
+
+                <MudTd>
+                    <MudChip T="string" Size="Size.Small" 
+                             Style="@($"background: {GetSubjectColor(context.Exam?.Subject?.Name ?? "")}; color: white; font-weight: 600;")">
+                        @(context.Exam?.Subject?.Name ?? "N/A")
+                    </MudChip>
+                </MudTd>
+
+                <MudTd>
+                    <MudText Typo="Typo.body2" Style="font-weight: 500;">
+                        @(context.Exam?.Title ?? "N/A")
+                    </MudText>
+                </MudTd>
+
+                <MudTd Style="text-align:center">
+                    <MudText Typo="Typo.body2" Style="font-weight: 700;">
+                        @context.Score / @(context.Exam?.TotalMarks ?? 0)
+                    </MudText>
+                </MudTd>
+
+                <MudTd Style="text-align:center">
+                    @{
+                        var pct = context.Exam?.TotalMarks > 0
+                            ? (double)context.Score / context.Exam.TotalMarks * 100
+                            : 0;
+                        var pctColor = pct >= 80 ? Color.Success : pct >= 60 ? Color.Info : pct >= 40 ? Color.Warning : Color.Error;
+                    }
+                    <MudStack Spacing="1" Style="min-width: 120px;">
+                        <MudProgressLinear Value="@pct" Color="@pctColor" Rounded="true" Size="Size.Medium" />
+                        <MudText Typo="Typo.caption" Align="Align.Center" Style="font-weight: 600;">
+                            @(pct.ToString("F0"))%
+                        </MudText>
+                    </MudStack>
+                </MudTd>
+
+                <MudTd Style="text-align:center">
+                    @if (context.IsPassed)
+                    {
+                        <MudChip T="string" Class="chip-pass" Size="Size.Small">
+                            PASS
+                        </MudChip>
+                    }
+                    else
+                    {
+                        <MudChip T="string" Class="chip-fail" Size="Size.Small">
+                            FAIL
+                        </MudChip>
+                    }
+                </MudTd>
+
+                <MudTd Style="text-align:center">
+                    <MudText Typo="Typo.body2">
+                        @GetTimeTaken(context)
+                    </MudText>
+                </MudTd>
+
+                <MudTd>
+                    <MudText Typo="Typo.body2">
+                        @(context.CompletedAt?.ToString("MMM dd, yyyy") ?? "N/A")
+                    </MudText>
+                    <MudText Typo="Typo.caption" Color="Color.Secondary">
+                        @(context.CompletedAt?.ToString("hh:mm tt") ?? "")
+                    </MudText>
+                </MudTd>
+            </RowTemplate>
+
+            <NoRecordsContent>
+                <MudStack AlignItems="AlignItems.Center" Class="pa-8">
+                    <MudIcon Icon="@Icons.Material.Filled.SearchOff" Size="Size.Large" Color="Color.Secondary" />
+                    <MudText Typo="Typo.h6" Color="Color.Secondary">No results found</MudText>
+                    <MudText Typo="Typo.body2" Color="Color.Secondary">Try adjusting your filters</MudText>
+                </MudStack>
+            </NoRecordsContent>
+
+            <PagerContent>
+                <MudTablePager PageSizeOptions="new int[] { 10, 15, 25, 50 }" />
+            </PagerContent>
+        </MudTable>
+    }
+</div>
+
+@code {
+    private List<StudentExam> _results = new();
+    private List<Subject> _subjects = new();
+    private List<Exam> _exams = new();
+    private bool _isLoading = true;
+    private string _searchString = "";
+    private string? _filterSubject;
+    private string? _filterExam;
+    private string? _filterStatus;
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            _results = await StudentExamManager.GetAllResultsAsync();
+            _subjects = await SubjectManager.GetAllAsync();
+            _exams = await ExamManager.GetAllWithSubjectAsync();
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Error loading results: {ex.Message}", Severity.Error);
+        }
+        finally
+        {
+            _isLoading = false;
+        }
+    }
+
+    private List<StudentExam> GetFilteredResults()
+    {
+        var filtered = _results.AsEnumerable();
+
+        // Search by student name or email
+        if (!string.IsNullOrWhiteSpace(_searchString))
+        {
+            var search = _searchString.ToLower();
+            filtered = filtered.Where(r =>
+                (r.Student?.FullName?.ToLower().Contains(search) ?? false) ||
+                (r.Student?.Email?.ToLower().Contains(search) ?? false));
+        }
+
+        // Filter by subject
+        if (!string.IsNullOrWhiteSpace(_filterSubject))
+        {
+            filtered = filtered.Where(r => r.Exam?.Subject?.Name == _filterSubject);
+        }
+
+        // Filter by exam
+        if (!string.IsNullOrWhiteSpace(_filterExam))
+        {
+            filtered = filtered.Where(r => r.Exam?.Title == _filterExam);
+        }
+
+        // Filter by status
+        if (!string.IsNullOrWhiteSpace(_filterStatus))
+        {
+            filtered = _filterStatus == "Pass"
+                ? filtered.Where(r => r.IsPassed)
+                : filtered.Where(r => !r.IsPassed);
+        }
+
+        return filtered.OrderByDescending(r => r.CompletedAt).ToList();
+    }
+
+    private List<Exam> GetFilteredExams()
+    {
+        if (!string.IsNullOrWhiteSpace(_filterSubject))
+        {
+            return _exams.Where(e => e.Subject?.Name == _filterSubject).ToList();
+        }
+        return _exams;
+    }
+
+    private string GetAverageScore()
+    {
+        var completed = _results.Where(r => r.Exam?.TotalMarks > 0).ToList();
+        if (!completed.Any()) return "0";
+        var avg = completed.Average(r => (double)r.Score / r.Exam!.TotalMarks * 100);
+        return avg.ToString("F0");
+    }
+
+    private string GetTimeTaken(StudentExam se)
+    {
+        if (se.CompletedAt == null) return "N/A";
+        var duration = se.CompletedAt.Value - se.StartedAt;
+        if (duration.TotalMinutes < 1) return $"{duration.Seconds}s";
+        return $"{(int)duration.TotalMinutes}m {duration.Seconds}s";
+    }
+
+    private string GetInitials(string fullName)
+    {
+        if (string.IsNullOrWhiteSpace(fullName)) return "?";
+        var parts = fullName.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        if (parts.Length >= 2)
+            return $"{parts[0][0]}{parts[1][0]}".ToUpper();
+        return fullName[0].ToString().ToUpper();
+    }
+
+    private string GetAvatarColor(string name)
+    {
+        var colors = new[] { "#667eea", "#764ba2", "#f093fb", "#f5576c", "#11998e", "#38ef7d", "#F2994A", "#4facfe" };
+        var index = Math.Abs(name.GetHashCode()) % colors.Length;
+        return colors[index];
+    }
+
+    private string GetSubjectColor(string subjectName)
+    {
+        return subjectName switch
+        {
+            "C# Programming" => "#667eea",
+            "Data Structures" => "#f5576c",
+            "SQL Server" => "#11998e",
+            "ASP.NET Core" => "#764ba2",
+            "Advanced OOP" => "#F2994A",
+            "Web Design" => "#4facfe",
+            _ => "#667eea"
+        };
+    }
+}

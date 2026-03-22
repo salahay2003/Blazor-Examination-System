@@ -1,0 +1,27 @@
+﻿<MudNavMenu>
+    <MudNavLink Href="/" Match="NavLinkMatch.All" Icon="@Icons.Material.Filled.Home">Home</MudNavLink>
+
+    <AuthorizeView Roles="Admin">
+        <MudNavGroup Title="Administration" Icon="@Icons.Material.Filled.AdminPanelSettings" Expanded="true">
+            <MudNavLink Href="/admin/dashboard" Icon="@Icons.Material.Filled.Dashboard">Dashboard</MudNavLink>
+            <MudNavLink Href="/admin/subjects" Icon="@Icons.Material.Filled.Book">Subjects</MudNavLink>
+            <MudNavLink Href="/admin/exams" Icon="@Icons.Material.Filled.Quiz">Exams</MudNavLink>
+            <MudNavLink Href="/admin/results" Icon="@Icons.Material.Filled.Assessment">Results</MudNavLink>
+        </MudNavGroup>
+    </AuthorizeView>
+
+    <AuthorizeView Roles="Student">
+        <MudNavGroup Title="Student" Icon="@Icons.Material.Filled.School" Expanded="true">
+            <MudNavLink Href="/student/exams" Icon="@Icons.Material.Filled.PlayCircle">Available Exams</MudNavLink>
+            <MudNavLink Href="/student/results" Icon="@Icons.Material.Filled.History">My Results</MudNavLink>
+        </MudNavGroup>
+    </AuthorizeView>
+
+    <AuthorizeView>
+        <NotAuthorized>
+            <MudNavLink Href="Account/Login" Icon="@Icons.Material.Filled.Login">Login</MudNavLink>
+            <MudNavLink Href="Account/Register" Icon="@Icons.Material.Filled.PersonAdd">Register</MudNavLink>
+        </NotAuthorized>
+    </AuthorizeView>
+</MudNavMenu>
+

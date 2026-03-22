@@ -1,0 +1,77 @@
+@using Blazor_Examination_System.Models
+
+<MudDialog>
+    <TitleContent>
+        <MudText Typo="Typo.h6">@(_model?.Id == 0 ? "Add Exam" : "Edit Exam")</MudText>
+    </TitleContent>
+    <DialogContent>
+        <MudForm @ref="_form" Model="_model">
+            <MudTextField @bind-Value="_model!.Title" Label="Title" Required RequiredError="Title is required" />
+            <MudTextField @bind-Value="_model.Description" Label="Description" Lines="3" />
+            <MudSelect @bind-Value="_model.SubjectId" Label="Subject" Required RequiredError="Subject is required">
+                @foreach (var subject in Subjects)
+                {
+                    <MudSelectItem Value="subject.Id">@subject.Name</MudSelectItem>
+                }
+            </MudSelect>
+            <MudNumericField @bind-Value="_model.DurationInMinutes" Label="Duration (minutes)" Min="1" />
+            <MudNumericField @bind-Value="_model.TotalMarks" Label="Total Marks" Min="1" />
+            <MudNumericField @bind-Value="_model.PassingMarks" Label="Passing Marks" Min="1" />
+            @if (_model.PassingMarks > _model.TotalMarks)
+            {
+                <MudAlert Severity="Severity.Error">Passing marks cannot exceed total marks</MudAlert>
+            }
+            <MudSwitch @bind-Value="_model.IsActive" Label="Active" Color="Color.Primary" />
+        </MudForm>
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="Cancel">Cancel</MudButton>
+        <MudButton Color="Color.Primary" Variant="Variant.Filled" OnClick="Save" Disabled="(_model?.PassingMarks > _model?.TotalMarks)">Save</MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter] private IMudDialogInstance MudDialog { get; set; } = null!;
+    [Parameter] public Exam? Exam { get; set; }
+    [Parameter] public List<Subject> Subjects { get; set; } = new();
+    
+    private Exam? _model;
+    private MudForm? _form;
+
+    protected override void OnInitialized()
+    {
+        if (Exam == null)
+        {
+            _model = new Exam { IsActive = true, DurationInMinutes = 60, TotalMarks = 100, PassingMarks = 50 };
+        }
+        else
+        {
+            _model = new Exam 
+            { 
+                Id = Exam.Id,
+                Title = Exam.Title,
+                Description = Exam.Description,
+                SubjectId = Exam.SubjectId,
+                DurationInMinutes = Exam.DurationInMinutes,
+                TotalMarks = Exam.TotalMarks,
+                PassingMarks = Exam.PassingMarks,
+                IsActive = Exam.IsActive,
+                CreatedAt = Exam.CreatedAt
+            };
+        }
+    }
+
+    private async Task Save()
+    {
+        if (_form != null)
+        {
+            await _form.Validate();
+            if (_form.IsValid && _model!.PassingMarks <= _model.TotalMarks)
+            {
+                MudDialog.Close(DialogResult.Ok(_model));
+            }
+        }
+    }
+
+    private void Cancel() => MudDialog.Cancel();
+}

@@ -1,0 +1,59 @@
+@using Blazor_Examination_System.Models
+
+<MudDialog>
+    <TitleContent>
+        <MudText Typo="Typo.h6">@(_model?.Id == 0 ? "Add Subject" : "Edit Subject")</MudText>
+    </TitleContent>
+    <DialogContent>
+        <MudForm @ref="_form" Model="_model">
+            <MudTextField @bind-Value="_model!.Name" Label="Name" Required RequiredError="Name is required" />
+            <MudTextField @bind-Value="_model.Description" Label="Description" Lines="3" />
+            <MudSwitch @bind-Value="_model.IsActive" Label="Active" Color="Color.Primary" />
+        </MudForm>
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="Cancel">Cancel</MudButton>
+        <MudButton Color="Color.Primary" Variant="Variant.Filled" OnClick="Save">Save</MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter] private IMudDialogInstance MudDialog { get; set; } = null!;
+    [Parameter] public Subject? Subject { get; set; }
+    
+    private Subject? _model;
+    private MudForm? _form;
+
+    protected override void OnInitialized()
+    {
+        if (Subject == null)
+        {
+            _model = new Subject { IsActive = true };
+        }
+        else
+        {
+            _model = new Subject 
+            { 
+                Id = Subject.Id,
+                Name = Subject.Name,
+                Description = Subject.Description,
+                IsActive = Subject.IsActive,
+                CreatedAt = Subject.CreatedAt
+            };
+        }
+    }
+
+    private async Task Save()
+    {
+        if (_form != null)
+        {
+            await _form.Validate();
+            if (_form.IsValid)
+            {
+                MudDialog.Close(DialogResult.Ok(_model));
+            }
+        }
+    }
+
+    private void Cancel() => MudDialog.Cancel();
+}

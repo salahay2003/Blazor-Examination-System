@@ -1,0 +1,469 @@
+@page "/student/exam/{ExamId:int}/take"
+@attribute [Authorize(Roles = "Student")]
+@rendermode InteractiveServer
+@implements IDisposable
+@inject IStudentExamManager StudentExamManager
+@inject IExamManager ExamManager
+@inject IQuestionManager QuestionManager
+@inject IDialogService DialogService
+@inject ISnackbar Snackbar
+@inject NavigationManager Navigation
+
+<PageTitle>Take Exam — ExamBlaze</PageTitle>
+
+@if (_isLoading)
+{
+    <div class="loading-container">
+        <MudProgressCircular Indeterminate="true" Size="Size.Large" Color="Color.Primary" />
+        <p class="loading-text">Loading exam...</p>
+    </div>
+}
+else if (_exam != null && _questions.Any())
+{
+    <div class="take-topbar animate-slide-down">
+        <div class="take-topbar-info">
+            <h2 class="take-exam-title">@_exam.Title</h2>
+            <span class="exam-subject-badge">@_exam.Subject?.Name</span>
+        </div>
+        <div class="take-topbar-actions">
+            <MudChip T="string" Class="@($"timer-chip {(_remainingSeconds <= 60 ? "timer-danger" : "")}")">
+                @FormatTime(_remainingSeconds)
+            </MudChip>
+            <MudButton Color="Color.Error" Variant="Variant.Filled" OnClick="SubmitExam"
+                       Disabled="_isSubmitting" StartIcon="@Icons.Material.Filled.Send"
+                       Class="take-submit-btn">
+                Submit
+            </MudButton>
+        </div>
+    </div>
+
+    <div class="take-navigator animate-fade-in-up delay-1">
+        @for (int i = 0; i < _questions.Count; i++)
+        {
+            var index = i;
+            var qId = _questions[index].Id;
+            var isActive = index == _currentIndex;
+            var isAnswered = _answers.ContainsKey(qId) && _answers[qId] != null;
+            <button class="@($"take-nav-btn {(isActive ? "take-nav-active" : isAnswered ? "take-nav-answered" : "")}")"
+                    @onclick="() => _currentIndex = index">
+                @(index + 1)
+            </button>
+        }
+    </div>
+
+    <div class="take-question-card animate-fade-in-up delay-2">
+        @{
+            var currentQuestion = _questions[_currentIndex];
+            var currentAnswer = _answers.ContainsKey(currentQuestion.Id) ? _answers[currentQuestion.Id] : null;
+        }
+        <div class="take-question-meta">
+            Question @(_currentIndex + 1) of @_questions.Count
+            <span class="take-question-marks">@currentQuestion.Marks mark@(currentQuestion.Marks == 1 ? "" : "s")</span>
+        </div>
+        <p class="take-question-text">@currentQuestion.Text</p>
+
+        <MudRadioGroup T="int?" Value="currentAnswer"
+                       ValueChanged="async (val) => await OnAnswerChanged(currentQuestion.Id, val)"
+                       Class="take-choices">
+            @foreach (var choice in currentQuestion.Choices.OrderBy(c => c.OrderIndex))
+            {
+                <div class="@($"take-choice {(currentAnswer == choice.Id ? "take-choice-selected" : "")}")">
+                    <MudRadio T="int?" Value="@choice.Id" Color="Color.Primary">
+                        @choice.Text
+                    </MudRadio>
+                </div>
+            }
+        </MudRadioGroup>
+    </div>
+
+    <div class="take-nav-row animate-fade-in-up delay-3">
+        <MudButton Variant="Variant.Outlined" Color="Color.Primary"
+                   Disabled="(_currentIndex == 0)"
+                   OnClick="() => _currentIndex--"
+                   StartIcon="@Icons.Material.Filled.ArrowBack"
+                   Class="take-nav-arrow">
+            Previous
+        </MudButton>
+
+        <span class="take-progress-text">
+            @(_answers.Count(a => a.Value != null)) / @_questions.Count answered
+        </span>
+
+        <MudButton Variant="Variant.Outlined" Color="Color.Primary"
+                   Disabled="(_currentIndex >= _questions.Count - 1)"
+                   OnClick="() => _currentIndex++"
+                   EndIcon="@Icons.Material.Filled.ArrowForward"
+                   Class="take-nav-arrow">
+            Next
+        </MudButton>
+    </div>
+}
+
+<style>
+    /* ===== TOP BAR ===== */
+    .take-topbar {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        flex-wrap: wrap;
+        gap: 12px;
+        background: #f5ede8;
+        border-radius: 18px;
+        padding: 16px 22px;
+        margin-bottom: 16px;
+        box-shadow: 6px 6px 16px rgba(190,130,110,0.28), -6px -6px 14px rgba(255,255,255,0.8);
+    }
+
+    .take-topbar-info {
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+    }
+
+    .take-exam-title {
+        font-family: 'Syne', sans-serif;
+        font-size: 1.2rem;
+        font-weight: 800;
+        color: #3a1f15;
+        margin: 0;
+    }
+
+    .take-topbar-actions {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+    }
+
+    .take-submit-btn {
+        border-radius: 12px !important;
+        font-family: 'Syne', sans-serif !important;
+        font-weight: 700 !important;
+        text-transform: none !important;
+        box-shadow: 4px 4px 12px rgba(229,57,53,0.3), -3px -3px 8px rgba(255,255,255,0.6) !important;
+    }
+
+    /* ===== QUESTION NAVIGATOR ===== */
+    .take-navigator {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+        background: #f5ede8;
+        border-radius: 16px;
+        padding: 14px 18px;
+        margin-bottom: 16px;
+        box-shadow: 5px 5px 14px rgba(190,130,110,0.24), -5px -5px 12px rgba(255,255,255,0.78);
+    }
+
+    .take-nav-btn {
+        width: 36px;
+        height: 36px;
+        border-radius: 10px;
+        border: none;
+        background: #f5ede8;
+        color: #9b6252;
+        font-family: 'DM Sans', sans-serif;
+        font-size: 0.82rem;
+        font-weight: 600;
+        cursor: pointer;
+        box-shadow: 3px 3px 8px rgba(190,130,110,0.25), -3px -3px 8px rgba(255,255,255,0.72);
+        transition: all 0.2s ease;
+    }
+
+    .take-nav-btn:hover {
+        transform: translateY(-2px);
+        box-shadow: 5px 5px 12px rgba(190,130,110,0.3), -5px -5px 10px rgba(255,255,255,0.8);
+    }
+
+    .take-nav-active {
+        background: linear-gradient(135deg, #ff8c5a, #ff5722) !important;
+        color: #fff !important;
+        box-shadow: 3px 3px 10px rgba(255,87,34,0.4), -2px -2px 6px rgba(255,255,255,0.6) !important;
+    }
+
+    .take-nav-answered {
+        background: linear-gradient(135deg, #66bb6a, #2e7d32) !important;
+        color: #fff !important;
+        box-shadow: 3px 3px 10px rgba(46,125,50,0.35), -2px -2px 6px rgba(255,255,255,0.6) !important;
+    }
+
+    /* ===== QUESTION CARD ===== */
+    .take-question-card {
+        background: #f5ede8;
+        border-radius: 20px;
+        padding: 26px 28px;
+        margin-bottom: 16px;
+        box-shadow: 7px 7px 18px rgba(190,130,110,0.28), -7px -7px 16px rgba(255,255,255,0.82);
+        position: relative;
+        overflow: hidden;
+    }
+
+    .take-question-card::before {
+        content: '';
+        position: absolute;
+        top: 0; left: 0; bottom: 0;
+        width: 5px;
+        background: linear-gradient(135deg, #ff8c5a, #ff5722, #e53935);
+        border-radius: 20px 0 0 20px;
+    }
+
+    .take-question-meta {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        font-size: 0.8rem;
+        color: #9b6252;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.8px;
+        margin-bottom: 12px;
+    }
+
+    .take-question-marks {
+        background: linear-gradient(135deg, #ff8c5a, #ff5722);
+        color: #fff;
+        padding: 2px 10px;
+        border-radius: 20px;
+        font-size: 0.75rem;
+        font-weight: 700;
+        letter-spacing: 0.5px;
+        text-transform: none;
+    }
+
+    .take-question-text {
+        font-family: 'Syne', sans-serif;
+        font-size: 1.05rem;
+        font-weight: 700;
+        color: #3a1f15;
+        margin: 0 0 20px;
+        line-height: 1.5;
+    }
+
+    /* ===== CHOICES ===== */
+    .take-choices {
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+    }
+
+    .take-choice {
+        background: #f5ede8;
+        border-radius: 13px;
+        padding: 10px 16px;
+        border: 1.5px solid rgba(190,130,110,0.2);
+        box-shadow: 3px 3px 8px rgba(190,130,110,0.18), -3px -3px 8px rgba(255,255,255,0.72);
+        transition: all 0.25s ease;
+        cursor: pointer;
+    }
+
+    .take-choice:hover {
+        border-color: rgba(255,87,34,0.3);
+        box-shadow: 5px 5px 12px rgba(190,130,110,0.24), -5px -5px 10px rgba(255,255,255,0.78);
+        transform: translateX(3px);
+    }
+
+    .take-choice-selected {
+        border-color: rgba(255,87,34,0.5) !important;
+        background: rgba(255,87,34,0.06) !important;
+        box-shadow: inset 2px 2px 6px rgba(190,130,110,0.2), inset -2px -2px 6px rgba(255,255,255,0.65) !important;
+    }
+
+    /* ===== NAV ROW ===== */
+    .take-nav-row {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+    }
+
+    .take-nav-arrow {
+        border-radius: 12px !important;
+        font-family: 'DM Sans', sans-serif !important;
+        font-weight: 600 !important;
+        text-transform: none !important;
+        border-color: rgba(255,87,34,0.35) !important;
+        color: #c94020 !important;
+        box-shadow: 4px 4px 10px rgba(190,130,110,0.22), -4px -4px 10px rgba(255,255,255,0.72) !important;
+        transition: all 0.25s ease !important;
+    }
+
+    .take-nav-arrow:hover:not([disabled]) {
+        border-color: #ff5722 !important;
+        background: rgba(255,87,34,0.05) !important;
+        transform: translateY(-2px) !important;
+    }
+
+    .take-progress-text {
+        font-size: 0.82rem;
+        color: #9b6252;
+        font-weight: 600;
+    }
+
+    @@media (max-width: 600px) {
+        .take-topbar {
+            flex-direction: column;
+            align-items: flex-start;
+        }
+        .take-topbar-actions {
+            width: 100%;
+            justify-content: space-between;
+        }
+        .take-question-card {
+            padding: 20px 18px;
+        }
+    }
+</style>
+
+@code {
+    [Parameter] public int ExamId { get; set; }
+    [CascadingParameter] private Task<AuthenticationState>? AuthStateTask { get; set; }
+
+    private string _userId = string.Empty;
+    private StudentExam? _studentExam;
+    private Exam? _exam;
+    private List<Question> _questions = new();
+    private int _currentIndex = 0;
+    private Dictionary<int, int?> _answers = new();
+    private int _remainingSeconds = 0;
+    private System.Timers.Timer? _timer;
+    private bool _isLoading = true;
+    private bool _isSubmitting = false;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var authState = await AuthStateTask!;
+        _userId = authState.User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value ?? string.Empty;
+
+        _studentExam = await StudentExamManager.GetActiveExamAsync(_userId, ExamId);
+        if (_studentExam == null)
+        {
+            var hasTaken = await StudentExamManager.HasStudentTakenExamAsync(_userId, ExamId);
+            if (hasTaken)
+                Navigation.NavigateTo("/student/results");
+            else
+                Navigation.NavigateTo("/student/exams");
+            return;
+        }
+
+        _exam = await ExamManager.GetByIdWithDetailsAsync(ExamId);
+        _questions = await QuestionManager.GetByExamIdAsync(ExamId);
+
+        if (!_questions.Any())
+        {
+            Snackbar.Add("No questions found for this exam", Severity.Error);
+            Navigation.NavigateTo("/student/exams");
+            return;
+        }
+
+        var endTime = _studentExam.StartedAt.AddMinutes(_exam!.DurationInMinutes);
+        _remainingSeconds = Math.Max(0, (int)(endTime - DateTime.UtcNow).TotalSeconds);
+
+        if (_remainingSeconds <= 0)
+        {
+            await AutoSubmitAsync();
+            return;
+        }
+
+        _timer = new System.Timers.Timer(1000);
+        _timer.Elapsed += TimerTick;
+        _timer.AutoReset = true;
+        _timer.Start();
+
+        _isLoading = false;
+    }
+
+    private async void TimerTick(object? sender, System.Timers.ElapsedEventArgs e)
+    {
+        _remainingSeconds--;
+        if (_remainingSeconds <= 0)
+        {
+            _timer?.Stop();
+            await InvokeAsync(async () =>
+            {
+                await AutoSubmitAsync();
+                StateHasChanged();
+            });
+        }
+        else
+        {
+            await InvokeAsync(StateHasChanged);
+        }
+    }
+
+    private string FormatTime(int totalSeconds)
+    {
+        var minutes = totalSeconds / 60;
+        var seconds = totalSeconds % 60;
+        return $"{minutes:D2}:{seconds:D2}";
+    }
+
+    private Color GetTimerColor() => _remainingSeconds switch
+    {
+        <= 60 => Color.Error,
+        <= 300 => Color.Warning,
+        _ => Color.Success
+    };
+
+    private async Task OnAnswerChanged(int questionId, int? choiceId)
+    {
+        if (choiceId == null || _isSubmitting) return;
+        _answers[questionId] = choiceId;
+        try
+        {
+            await StudentExamManager.SubmitAnswerAsync(_studentExam!.Id, questionId, choiceId.Value);
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Failed to save answer: {ex.Message}", Severity.Error);
+        }
+    }
+
+    private async Task SubmitExam()
+    {
+        var answered = _answers.Count(a => a.Value != null);
+        var total = _questions.Count;
+        var parameters = new DialogParameters
+        {
+            ["ContentText"] = $"You have answered {answered} of {total} questions. Are you sure you want to submit?"
+        };
+        var dialog = await DialogService.ShowAsync<ConfirmDialog>("Submit Exam", parameters);
+        var result = await dialog.Result;
+        if (result != null && !result.Canceled)
+        {
+            await FinalSubmitAsync();
+        }
+    }
+
+    private async Task FinalSubmitAsync()
+    {
+        _isSubmitting = true;
+        _timer?.Stop();
+        try
+        {
+            var completed = await StudentExamManager.CompleteExamAsync(_studentExam!.Id);
+            Snackbar.Add($"Exam submitted! Score: {completed.Score}/{_exam!.TotalMarks}",
+                completed.IsPassed ? Severity.Success : Severity.Warning);
+            Navigation.NavigateTo($"/student/result/{_studentExam.Id}");
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Error submitting: {ex.Message}", Severity.Error);
+            _isSubmitting = false;
+        }
+    }
+
+    private async Task AutoSubmitAsync()
+    {
+        Snackbar.Add("Time's up! Auto-submitting your exam...", Severity.Warning);
+        await FinalSubmitAsync();
+    }
+
+    public void Dispose()
+    {
+        if (_timer != null)
+        {
+            _timer.Elapsed -= TimerTick;
+            _timer.Stop();
+            _timer.Dispose();
+        }
+    }
+}

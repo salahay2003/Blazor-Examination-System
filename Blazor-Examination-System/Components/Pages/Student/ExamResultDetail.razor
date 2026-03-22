@@ -1,0 +1,141 @@
+@page "/student/result/{StudentExamId:int}"
+@attribute [Authorize(Roles = "Student")]
+@rendermode InteractiveServer
+@inject IStudentExamManager StudentExamManager
+@inject NavigationManager Navigation
+
+<PageTitle>Exam Result</PageTitle>
+
+<MudButton StartIcon="@Icons.Material.Filled.ArrowBack" OnClick="GoBack" Class="mb-4">
+    Back to Results
+</MudButton>
+
+@if (_isLoading)
+{
+    <MudProgressCircular Indeterminate="true" />
+}
+else if (_result != null)
+{
+    <MudCard Elevation="3" Class="mb-4">
+        <MudCardContent>
+            <MudGrid>
+                <MudItem xs="12" md="5">
+                    <MudText Typo="Typo.h5">@_result.ExamTitle</MudText>
+                    <MudText Color="Color.Secondary">@_result.SubjectName</MudText>
+                    <MudText Class="mt-2">Score: @_result.Score / @_result.TotalMarks</MudText>
+                    <MudText>Time Taken: @FormatTimeTaken()</MudText>
+                </MudItem>
+                <MudItem xs="12" md="4" Class="d-flex justify-center align-center">
+                    <div style="position: relative; display: inline-flex; align-items: center; justify-content: center;">
+                        <MudProgressCircular Value="@_result.Percentage" Size="Size.Large" Color="@(_result.IsPassed ? Color.Success : Color.Error)" Class="mud-text-align-center">
+                            <MudText Typo="Typo.h6">@_result.Percentage.ToString("F0")%</MudText>
+                        </MudProgressCircular>
+                    </div>
+                </MudItem>
+                <MudItem xs="12" md="3" Class="d-flex align-center justify-center">
+                    <MudChip T="string" Size="Size.Large" Color="@(_result.IsPassed ? Color.Success : Color.Error)" Variant="Variant.Filled">
+                        @(_result.IsPassed ? "PASSED ✓" : "FAILED ✗")
+                    </MudChip>
+                </MudItem>
+            </MudGrid>
+        </MudCardContent>
+    </MudCard>
+
+    <MudText Typo="Typo.h5" Class="mt-6 mb-2">Question Review</MudText>
+    <MudExpansionPanels MultiExpansion="true">
+        @for (int i = 0; i < _result.Questions.Count; i++)
+        {
+            var q = _result.Questions[i];
+            var index = i;
+            <MudExpansionPanel>
+                <TitleContent>
+                    <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="2">
+                        <MudIcon Icon="@(q.IsCorrect ? Icons.Material.Filled.CheckCircle : Icons.Material.Filled.Cancel)"
+                                 Color="@(q.IsCorrect ? Color.Success : Color.Error)" />
+                        <MudText>
+                            Q@(index + 1):
+                            @if (q.QuestionText.Length > 100)
+                            {
+                                @(q.QuestionText[..100] + "...")
+                            }
+                            else
+                            {
+                                @q.QuestionText
+                            }
+                        </MudText>
+                        <MudSpacer />
+                        <MudChip T="string" Size="Size.Small" Color="@(q.IsCorrect ? Color.Success : Color.Error)">
+                            @q.Marks mark(s)
+                        </MudChip>
+                    </MudStack>
+                </TitleContent>
+                <ChildContent>
+                    @foreach (var c in q.Choices)
+                    {
+                        var bgColor = "";
+                        var label = "";
+                        if (c.IsCorrect && c.IsSelected)
+                        {
+                            bgColor = "#C8E6C9";
+                            label = "✓ Your Answer (Correct)";
+                        }
+                        else if (c.IsCorrect && !c.IsSelected)
+                        {
+                            bgColor = "#E8F5E9";
+                            label = "← Correct Answer";
+                        }
+                        else if (!c.IsCorrect && c.IsSelected)
+                        {
+                            bgColor = "#FFCDD2";
+                            label = "✗ Your Answer (Wrong)";
+                        }
+
+                        <MudPaper Class="pa-3 ma-1" Style="@($"background-color: {bgColor}")">
+                            <MudStack Row="true" Justify="Justify.SpaceBetween">
+                                <MudText>@c.Text</MudText>
+                                @if (!string.IsNullOrEmpty(label))
+                                {
+                                    <MudText Typo="Typo.caption"><b>@label</b></MudText>
+                                }
+                            </MudStack>
+                        </MudPaper>
+                    }
+                </ChildContent>
+            </MudExpansionPanel>
+        }
+    </MudExpansionPanels>
+}
+
+@code {
+    [Parameter] public int StudentExamId { get; set; }
+
+    private ExamResultDto? _result;
+    private bool _isLoading = true;
+
+    protected override async Task OnInitializedAsync()
+    {
+        _isLoading = true;
+        try
+        {
+            _result = await StudentExamManager.GetExamResultAsync(StudentExamId);
+        }
+        finally
+        {
+            _isLoading = false;
+        }
+    }
+
+    private void GoBack()
+    {
+        Navigation.NavigateTo("/student/results");
+    }
+
+    private string FormatTimeTaken()
+    {
+        if (_result?.CompletedAt == null)
+            return "N/A";
+
+        var duration = _result.CompletedAt.Value - _result.StartedAt;
+        return $"{(int)duration.TotalMinutes} min {duration.Seconds} sec";
+    }
+}
