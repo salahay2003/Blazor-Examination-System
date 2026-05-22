@@ -4,14 +4,6 @@ A comprehensive web-based examination platform built with **Blazor Server**, **.
 
 ---
 
-## 👨‍💻 **Developer Information**
-
-**Name:** Mahmoud Eid Mahmoud  
-**Phone:** +20 106 451 9051  
-**Email:** Mahmoudeid127@gmail.com
-
----
-
 ## 📋 **Table of Contents**
 
 - [Project Overview](#project-overview)
@@ -486,8 +478,8 @@ AFTER:  Student answers 1/1 correctly → Score=1 → 1>=1 → PASSED ✅
 **Console Output Example:**
 ```
 ========================================
-🔧 Fixing exam 'NewMahmoud': TotalMarks 5 → 1
-🔧 Fixing exam 'NewMahmoud': PassingMarks 3 → 1
+🔧 Fixing exam 'NewSalah': TotalMarks 5 → 1
+🔧 Fixing exam 'NewSalah': PassingMarks 3 → 1
 ✅ Fixed all exam marks and passing criteria
 ========================================
 📊 SCORING EXAM: C# Basics
@@ -712,20 +704,11 @@ ENTRYPOINT ["dotnet", "Blazor-Examination-System.dll"]
 
 ---
 
-## 📞 **Support & Contact**
-
-For questions, bug reports, or feature requests:
-
-**Developer:** Mahmoud Eid Mahmoud  
-**Email:** Mahmoudeid127@gmail.com  
-**Phone:** +20 106 451 9051
-
----
 
 ## 📄 **License**
 
 This project is proprietary and created for educational purposes.  
-All rights reserved © 2025 Mahmoud Eid Mahmoud
+All rights reserved © 2025 Salah Ayman
 
 ---
 
@@ -777,18 +760,12 @@ Built with modern .NET technologies and best practices in:
 - Performance optimization
 - Code quality and maintainability
 
----
 
-**Last Updated:** March 16, 2025  
-**Version:** 1.0.0  
-**Maintained by:** Mahmoud Eid Mahmoud
-
----
 
 ```
 ╔════════════════════════════════════════════════╗
 ║  Blazor Examination System v1.0.0              ║
 ║  Built with ❤️  using .NET 10 & Blazor Server ║
-║  © 2025 Mahmoud Eid Mahmoud                    ║
+║  © 2025 Salah Ayman Fawzy                 ║
 ╚════════════════════════════════════════════════╝
 ```
